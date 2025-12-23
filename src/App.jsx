@@ -26,7 +26,7 @@ const styles = `
   .down-border { border-color: #f6465d !important; box-shadow: 0 0 30px rgba(246, 70, 93, 0.3); }
 
   .status-text { color: #f3ba2f; font-size: 0.9rem; font-weight: 800; text-transform: uppercase; margin-bottom: 8px; }
-  .signal-val { font-size: 2.6rem; font-weight: 900; margin: 5px 0; letter-spacing: 1px; }
+  .signal-val { font-size: 2.4rem; font-weight: 900; margin: 5px 0; letter-spacing: 1px; }
   .up-text { color: #0ecb81; } 
   .down-text { color: #f6465d; }
 
@@ -35,7 +35,6 @@ const styles = `
   .acc-meter { margin-top: 12px; font-weight: 900; font-size: 1.1rem; padding: 8px; border-radius: 10px; }
 `;
 
-// সুনির্দিষ্ট ২৫টি মার্কেট
 const markets = [
   "BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT", 
   "ADAUSDT", "AVAXUSDT", "DOGEUSDT", "DOTUSDT", "LINKUSDT",
@@ -102,11 +101,11 @@ function App() {
       if (upperWick > bodySize * 2) score -= 3;
 
       if (score >= 1) {
-        setSignal('CALL (BUY)');
-        setConfidence(98.25 + Math.random());
+        setSignal('BUY (LONG)');
+        setConfidence(98.35 + Math.random());
       } else {
-        setSignal('PUT (SELL)');
-        setConfidence(98.45 + Math.random());
+        setSignal('SELL (SHORT)');
+        setConfidence(98.55 + Math.random());
       }
     } catch (e) {}
   }, [symbol, timeframe]);
@@ -135,15 +134,11 @@ function App() {
     return () => clearInterval(timer);
   }, [isLoggedIn, serverOffset, symbol, timeframe, advancedAnalysis]);
 
-  // চার্ট দ্রুত লোড করার জন্য useMemo ব্যবহার
   const fastChart = useMemo(() => (
     <iframe 
       key={symbol + timeframe}
       src={`https://s.tradingview.com/widgetembed/?symbol=BINANCE:${symbol}&interval=${timeframe === '1m' ? '1' : '3'}&theme=dark&style=1&hide_side_toolbar=true&save_image=false&backgroundColor=%23050709`} 
-      width="100%" 
-      height="100%" 
-      frameBorder="0"
-      style={{ border: 'none' }}
+      width="100%" height="100%" frameBorder="0" style={{ border: 'none' }}
     ></iframe>
   ), [symbol, timeframe]);
 
@@ -152,7 +147,7 @@ function App() {
       <div className="login-container">
         <style>{styles}</style>
         <div className="login-box">
-          <h2 style={{color:'#f3ba2f'}}>RTX SPOT PRO</h2>
+          <h2 style={{color:'#f3ba2f'}}>RTX 15 PRO MAX</h2>
           <input type="text" placeholder="Username" onChange={e => setUser(e.target.value)} />
           <input type="password" placeholder="Password" onChange={e => setPass(e.target.value)} />
           <button className="login-btn" onClick={() => (user === VALID_USER && pass === VALID_PASS) ? (localStorage.setItem('rtx_auth', 'true'), setIsLoggedIn(true)) : alert("Error")}>START ENGINE</button>
@@ -161,13 +156,13 @@ function App() {
     );
   }
 
-  const isUp = signal.includes('CALL');
+  const isUp = signal.includes('BUY');
 
   return (
     <div className="app-container">
       <div className={`notif-banner ${notif.show ? 'notif-show' : ''}`}>{notif.msg}</div>
       <header>
-        <div className="gold">RTX MASTER V15 PRO</div>
+        <div className="gold">RTX 15 PRO MAX V15</div>
         <button className="logout-btn" onClick={() => {localStorage.removeItem('rtx_auth'); setIsLoggedIn(false);}}>LOGOUT</button>
       </header>
 
