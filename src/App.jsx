@@ -1,200 +1,227 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import * as ti from 'technicalindicators';
+import axios from 'axios';
+import { ShieldCheck, Zap, Activity, Cpu, BellRing, ChevronDown } from 'lucide-react';
 
 const styles = `
-  body { background: #050709; color: white; font-family: 'Inter', sans-serif; margin: 0; padding: 0; overflow: hidden; }
+  :root { --gold: #f3ba2f; --green: #0ecb81; --red: #f6465d; --bg: #010203; --card: #0b0e11; }
+  body { font-family: 'Inter', sans-serif; background: var(--bg); margin: 0; color: #fff; overflow-x: hidden; }
+  .terminal { max-width: 480px; margin: auto; min-height: 100vh; background: var(--bg); border: 1px solid #1a1c20; }
   
-  .login-screen {
-    height: 100vh; width: 100vw; display: flex; align-items: center; justify-content: center;
-    background: radial-gradient(circle, #1a1e23 0%, #050709 100%);
+  header { padding: 15px; background: #0b0e11; border-bottom: 2px solid var(--gold); display: flex; justify-content: space-between; align-items: center; }
+  .logo { font-weight: 900; color: var(--gold); letter-spacing: 1px; font-size: 0.9rem; }
+  
+  .price-bar { background: #161a1e; padding: 12px; text-align: center; font-family: 'JetBrains Mono'; font-size: 1.5rem; font-weight: 800; border-bottom: 1px solid #222; }
+  
+  .controls { padding: 12px; display: grid; grid-template-columns: 1.5fr 1fr; gap: 8px; background: #0b0e11; }
+  
+  /* Custom Select Style with Arrow Fix */
+  .select-wrapper { position: relative; width: 100%; }
+  .select-wrapper select { 
+    width: 100%; padding: 12px; background: #0b0e11; color: var(--gold); 
+    border: 1px solid #333; border-radius: 8px; font-weight: bold; 
+    outline: none; appearance: none; -webkit-appearance: none; cursor: pointer; 
   }
-  .login-card {
-    background: #111418; padding: 40px 30px; border-radius: 24px; border: 1px solid #f3ba2f;
-    width: 340px; text-align: center; box-shadow: 0 10px 40px rgba(0,0,0,0.5);
-  }
-  .login-card h2 { color: #f3ba2f; margin-bottom: 30px; font-weight: 900; letter-spacing: 1px; }
-  .input-group { margin-bottom: 20px; text-align: left; }
-  .input-group label { display: block; color: #848e9c; font-size: 0.8rem; margin-bottom: 8px; margin-left: 5px; }
-  .input-group input {
-    width: 100%; padding: 14px; background: #050709; border: 1px solid #333; 
-    border-radius: 12px; color: white; box-sizing: border-box; outline: none; transition: 0.3s;
-  }
-  .input-group input:focus { border-color: #f3ba2f; box-shadow: 0 0 10px rgba(243, 186, 47, 0.2); }
-  .login-btn {
-    width: 100%; padding: 15px; background: #f3ba2f; border: none; border-radius: 12px;
-    color: #000; font-weight: 900; cursor: pointer; font-size: 1rem; transition: 0.3s;
-  }
+  .select-arrow { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); pointer-events: none; color: var(--gold); }
 
-  .app-container { display: flex; flex-direction: column; height: 100vh; max-width: 500px; margin: auto; position: relative; }
-  header { padding: 12px; display: flex; justify-content: space-between; align-items: center; background: #0b0e11; border-bottom: 2px solid #f3ba2f; }
-  .gold { color: #f3ba2f; font-weight: 900; }
-  .logout-btn { background: none; border: 1px solid #f6465d; color: #f6465d; font-size: 0.6rem; padding: 4px 8px; border-radius: 6px; cursor: pointer; }
+  .chart-container { height: 300px; background: #000; border-bottom: 1px solid #222; }
+
+  .signal-panel { padding: 15px; }
+  .card { background: var(--card); border-radius: 24px; padding: 25px; border: 1px solid #222; text-align: center; transition: all 0.5s ease; position: relative; }
+  .long-mode { border-color: var(--green); box-shadow: 0 0 50px rgba(14, 203, 129, 0.1); }
+  .short-mode { border-color: var(--red); box-shadow: 0 0 50px rgba(246, 70, 93, 0.1); }
+
+  .tags { display: flex; justify-content: center; gap: 6px; margin-bottom: 15px; }
+  .tag { font-size: 0.6rem; padding: 3px 8px; border-radius: 4px; background: #1e2329; color: #848e9c; border: 1px solid #333; font-weight: bold; }
+  .tag-on { background: var(--gold); color: #000; border-color: var(--gold); }
+
+  .sig-text { font-size: 2.6rem; font-weight: 900; margin: 5px 0; font-family: 'JetBrains Mono'; letter-spacing: -1px; }
   
-  .notif-banner { 
-    background: #f3ba2f; color: #000; padding: 12px; font-size: 0.9rem; font-weight: 900; 
-    position: absolute; top: 55px; width: 100%; z-index: 1000; text-align: center;
-    transform: translateY(-100%); transition: 0.5s;
-  }
-  .notif-show { transform: translateY(0); }
-  .chart-box { flex-grow: 1; width: 100%; background: #000; }
-  .controls { padding: 10px; background: #161a1e; display: flex; gap: 8px; border-top: 1px solid #2b2f36; }
-  select { background: #1e2329; color: white; border: 1px solid #f3ba2f; padding: 12px; border-radius: 8px; flex: 1; font-weight: bold; outline: none; }
-  
-  .signal-card { padding: 15px; background: #050709; }
-  .main-box { background: #111418; border: 3px solid #333; border-radius: 20px; padding: 20px; text-align: center; }
-  .up-border { border-color: #0ecb81 !important; box-shadow: 0 0 35px rgba(14, 203, 129, 0.4); }
-  .down-border { border-color: #f6465d !important; box-shadow: 0 0 35px rgba(246, 70, 93, 0.4); }
-  .status-text { color: #f3ba2f; font-size: 0.9rem; font-weight: 800; text-transform: uppercase; margin-bottom: 5px; }
-  .signal-val { font-size: 2.6rem; font-weight: 900; margin: 10px 0; }
-  .up-text { color: #0ecb81; } 
-  .down-text { color: #f6465d; }
-  .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 15px; border-top: 1px solid #222; padding-top: 15px; font-size: 0.75rem; }
-  .label { color: #848e9c; text-align: left; } .value { color: #f3ba2f; font-weight: bold; text-align: right; }
-  .acc-meter { border: 1px solid #f3ba2f; color: #f3ba2f; padding: 8px; border-radius: 12px; margin-top: 12px; font-weight: 900; font-size: 1.1rem; }
+  .alert-box { font-size: 0.8rem; font-weight: 900; padding: 10px; border-radius: 10px; margin: 10px 0; border: 1px solid transparent; }
+  .sure-shot { background: #f3ba2f11; color: var(--gold); border-color: var(--gold); animation: blink 1.5s infinite; }
+  .trailing-sl { background: #0ecb8111; color: var(--green); border-color: var(--green); font-size: 0.7rem; }
+
+  @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+
+  .targets { background: #050709; border-radius: 16px; padding: 18px; display: grid; gap: 12px; border: 1px solid #1a1c20; }
+  .t-row { display: flex; justify-content: space-between; font-family: 'JetBrains Mono'; font-size: 0.85rem; }
+  .t-label { color: #5d6673; }
+  .t-val { font-weight: bold; }
+
+  .footer-info { margin-top: 20px; display: flex; justify-content: space-between; font-size: 0.65rem; color: #444; border-top: 1px solid #1a1c20; padding-top: 10px; }
 `;
 
-const markets = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT", "ADAUSDT", "AVAXUSDT", "DOGEUSDT", "DOTUSDT", "LINKUSDT", "MATICUSDT", "LTCUSDT", "SHIBUSDT", "NEARUSDT", "TRXUSDT", "UNIUSDT", "OPUSDT", "APTUSDT", "ARBUSDT", "INJUSDT", "PEPEUSDT", "ORDIUSDT", "RNDRUSDT", "TIAUSDT", "SUIUSDT"];
+const markets = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT", "ADAUSDT", "AVAXUSDT", "DOGEUSDT", "DOTUSDT", "LINKUSDT", "MATICUSDT", "LTCUSDT", "SHIBUSDT", "NEARUSDT", "TRXUSDT", "PEPEUSDT", "SUIUSDT", "TIAUSDT", "OPUSDT", "ARBUSDT", "INJUSDT", "SEIUSDT", "ORDIUSDT", "RNDRUSDT", "FILUSDT", "ATOMUSDT", "ETCUSDT", "ICPUSDT", "APTUSDT", "STXUSDT"];
 
 function App() {
-  const [isLoggedIn, setIsLoggedIn] = useState(localStorage.getItem('isAuth') === 'true');
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
   const [symbol, setSymbol] = useState('BTCUSDT');
-  const [timeframe, setTimeframe] = useState('1m');
-  const [signal, setSignal] = useState('SCANNING');
-  const [confidence, setConfidence] = useState(0);
-  const [serverTime, setServerTime] = useState('--:--:--');
-  const [entryTime, setEntryTime] = useState('--:--:--');
-  const [alert, setAlert] = useState('INITIALIZING...');
-  const [notif, setNotif] = useState({ show: false, msg: '' });
-  const [serverOffset, setServerOffset] = useState(0);
+  const [livePrice, setLivePrice] = useState('0.00');
+  const [analysis, setAnalysis] = useState({ 
+    type: 'SCANNING', entry: 0, tp1: 0, tp2: 0, sl: 0, 
+    conf: 0, mtf: 'SYNCING', volume: 'NORMAL', isSureShot: false, isTrailing: false 
+  });
+  
+  const ws = useRef(null);
+  const timeoutId = useRef(null);
+  const isMounted = useRef(true);
 
-  const ENV_USER = import.meta.env.VITE_APP_USER || "admin";
-  const ENV_PASS = import.meta.env.VITE_APP_PASS || "1234";
+  const cleanSymbol = (s) => s.replace('/', '');
+  const precision = symbol.includes('PEPE') || symbol.includes('SHIB') ? 8 : 2;
 
-  useEffect(() => {
-    if (!isLoggedIn) return;
-    const sync = async () => {
-      const res = await fetch('https://fapi.binance.com/fapi/v1/time');
-      const { serverTime } = await res.json();
-      setServerOffset(serverTime - Date.now());
-    };
-    sync();
-    const styleTag = document.createElement("style"); styleTag.innerHTML = styles;
-    document.head.appendChild(styleTag);
-  }, [isLoggedIn]);
+  const fetchKlines = async (s, interval) => {
+    const r = await axios.get(`https://fapi.binance.com/fapi/v1/klines?symbol=${cleanSymbol(s)}&interval=${interval}&limit=100`);
+    return r.data.map(d => ({ h: +d[2], l: +d[3], c: +d[4], v: +d[5] }));
+  };
 
-  const mainAnalysisEngine = useCallback(async () => {
+  const runQuantumEngine = useCallback(async () => {
+    if (!isMounted.current) return;
     try {
-      const res = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=${timeframe}&limit=100`);
-      const data = await res.json();
-      const candles = data.map(d => ({
-        open: parseFloat(d[1]), high: parseFloat(d[2]), low: parseFloat(d[3]), close: parseFloat(d[4]), vol: parseFloat(d[5])
-      }));
+      const [k1m, k5m] = await Promise.all([fetchKlines(symbol, '1m'), fetchKlines(symbol, '5m')]);
+      const c1m = k1m.map(x => x.c);
+      const c5m = k5m.map(x => x.c);
+      
+      const rsi = ti.RSI.calculate({ values: c1m, period: 14 }).pop();
+      const ema20 = ti.EMA.calculate({ values: c1m, period: 20 }).pop();
+      const macd = ti.MACD.calculate({ values: c1m, fastPeriod: 12, slowPeriod: 26, signalPeriod: 9 }).pop();
+      const atr = ti.ATR.calculate({ high: k1m.map(x=>x.h), low: k1m.map(x=>x.l), close: c1m, period: 14 }).pop();
+      
+      const last5m = c5m[c5m.length - 1];
+      const ema5m = ti.EMA.calculate({ values: c5m, period: 20 }).pop();
+      const mtfTrend = last5m > ema5m ? 'UP' : 'DOWN';
 
-      const closes = candles.map(c => c.close);
-      const rsi = ti.RSI.calculate({ values: closes, period: 14 }).pop();
-      const ema = ti.EMA.calculate({ values: closes, period: 20 }).pop();
-      const last = candles[99];
-      const prev = candles[98];
+      const volumes = k1m.map(x => x.v);
+      const avgVol = ti.SMA.calculate({ values: volumes, period: 20 }).pop();
+      const isVolConfirm = volumes[volumes.length - 1] > avgVol * 1.4;
 
-      const body = Math.abs(last.close - last.open);
-      const lowerWick = Math.min(last.close, last.open) - last.low;
-      const upperWick = last.high - Math.max(last.close, last.open);
+      const lastPrice = c1m[c1m.length - 1];
+      
+      // Adaptive RSI Logic: Strong trend-এ RSI ফিল্টার শিথিল করা হয়েছে
+      const isRsiBull = (mtfTrend === 'UP' && isVolConfirm) ? rsi > 45 : (rsi > 45 && rsi < 70);
+      const isRsiBear = (mtfTrend === 'DOWN' && isVolConfirm) ? rsi < 55 : (rsi < 55 && rsi > 30);
 
-      let weight = 0;
-      // লজিক ১: ট্রেন্ড ফিল্টার (EMA)
-      if (last.close > ema) weight += 2; else weight -= 2;
-      // লজিক ২: RSI অভারসোল্ড/অভারবট
-      if (rsi < 40) weight += 3; if (rsi > 60) weight -= 3;
-      // লজিক ৩: স্মার্ট রিজেকশন (Wick Analysis)
-      if (lowerWick > body * 1.5) weight += 4; 
-      if (upperWick > body * 1.5) weight -= 4;
-      // লজিক ৪: এনগালফিং চেক
-      if (last.close > prev.open && prev.close < prev.open) weight += 2;
+      let buyScore = 0;
+      if (lastPrice > ema20) buyScore += 20;
+      if (macd.histogram > 0) buyScore += 20;
+      if (isRsiBull) buyScore += 20;
+      if (mtfTrend === 'UP') buyScore += 20;
+      if (isVolConfirm) buyScore += 20;
 
-      if (weight >= 1) {
-        setSignal('BUY (LONG)');
-        setConfidence(98.15 + Math.random());
-      } else {
-        setSignal('SELL (SHORT)');
-        setConfidence(98.35 + Math.random());
+      let sellScore = 0;
+      if (lastPrice < ema20) sellScore += 20;
+      if (macd.histogram < 0) sellScore += 20;
+      if (isRsiBear) sellScore += 20;
+      if (mtfTrend === 'DOWN') sellScore += 20;
+      if (isVolConfirm) sellScore += 20;
+
+      const sl_dist = atr * 1.8;
+      const tp1_val = buyScore > sellScore ? lastPrice + sl_dist : lastPrice - sl_dist;
+      
+      // Trailing SL logic visual check
+      const isTrailingActive = buyScore > sellScore ? lastPrice >= tp1_val : lastPrice <= tp1_val;
+
+      if (isMounted.current) {
+        setAnalysis({
+          type: buyScore > sellScore ? 'BUY (LONG)' : sellScore > buyScore ? 'SELL (SHORT)' : 'SCANNING',
+          entry: lastPrice.toFixed(precision),
+          tp1: tp1_val.toFixed(precision),
+          tp2: (buyScore > sellScore ? lastPrice + sl_dist * 2.8 : lastPrice - sl_dist * 2.8).toFixed(precision),
+          sl: (buyScore > sellScore ? lastPrice - sl_dist : lastPrice + sl_dist).toFixed(precision),
+          conf: Math.max(buyScore, sellScore),
+          mtf: mtfTrend,
+          volume: isVolConfirm ? 'HIGH SPIKE' : 'STABLE',
+          isSureShot: Math.max(buyScore, sellScore) >= 80,
+          isTrailing: isTrailingActive
+        });
       }
-    } catch (e) { console.error("Engine Error"); }
-  }, [symbol, timeframe]);
+    } catch (e) { console.warn("Engine re-syncing..."); }
+    if (isMounted.current) timeoutId.current = setTimeout(runQuantumEngine, 4000);
+  }, [symbol, precision]);
 
   useEffect(() => {
-    if (!isLoggedIn) return;
-    const timer = setInterval(() => {
-      const now = new Date(Date.now() + serverOffset);
-      setServerTime(now.toLocaleTimeString('en-GB'));
-      const sec = now.getSeconds();
-      const limit = timeframe === '1m' ? 60 : 180;
-      const remaining = limit - (timeframe === '1m' ? sec : (now.getMinutes() % 3) * 60 + sec);
+    isMounted.current = true;
+    if (ws.current) ws.current.close();
+    ws.current = new WebSocket(`wss://fstream.binance.com/ws/${cleanSymbol(symbol).toLowerCase()}@markPrice`);
+    ws.current.onmessage = (e) => {
+      if (isMounted.current) setLivePrice(parseFloat(JSON.parse(e.data).p).toFixed(precision));
+    };
+    runQuantumEngine();
+    const styleElem = document.createElement("style"); styleElem.innerHTML = styles;
+    document.head.appendChild(styleElem);
+    return () => { isMounted.current = false; clearTimeout(timeoutId.current); if (ws.current) ws.current.close(); };
+  }, [symbol, runQuantumEngine, precision]);
 
-      if (remaining > 20) {
-        mainAnalysisEngine();
-        setAlert('ANALYZING FUTURES...');
-      } else if (remaining <= 20 && remaining > 4) {
-        setAlert('PREPARING ENTRY...');
-      } else if (remaining <= 4 && remaining > 0) {
-        setAlert(`CONFIRMED: ${signal}`);
-      }
-
-      const next = new Date(now.getTime() + remaining * 1000);
-      setEntryTime(next.toLocaleTimeString('en-GB'));
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [isLoggedIn, serverOffset, symbol, timeframe, signal, mainAnalysisEngine]);
-
-  const futuresChart = useMemo(() => (
-    <iframe key={symbol + timeframe} src={`https://s.tradingview.com/widgetembed/?symbol=BINANCE:${symbol}.P&interval=${timeframe === '1m' ? '1' : '3'}&theme=dark&style=1&hide_side_toolbar=true&save_image=false`} width="100%" height="100%" frameBorder="0"></iframe>
-  ), [symbol, timeframe]);
-
-  if (!isLoggedIn) {
-    return (
-      <div className="login-screen">
-        <style>{styles}</style>
-        <div className="login-card">
-          <h2>RTX 15 PRO</h2>
-          <form onSubmit={(e) => { e.preventDefault(); if (username === ENV_USER && password === ENV_PASS) { localStorage.setItem('isAuth', 'true'); setIsLoggedIn(true); } else { alert("Error!"); } }}>
-            <div className="input-group"><label>USERNAME</label><input type="text" onChange={(e) => setUsername(e.target.value)} required /></div>
-            <div className="input-group"><label>PASSWORD</label><input type="password" onChange={(e) => setPassword(e.target.value)} required /></div>
-            <button type="submit" className="login-btn">START ENGINE</button>
-          </form>
-        </div>
-      </div>
-    );
-  }
-
-  const isUp = signal.includes('BUY');
+  const isUp = analysis.type.includes('BUY');
+  const isDown = analysis.type.includes('SELL');
 
   return (
-    <div className="app-container">
-      <div className={`notif-banner ${notif.show ? 'notif-show' : ''}`}>{notif.msg}</div>
+    <div className="terminal">
       <header>
-        <div className="gold">RTX 15 PRO MAX</div>
-        <button onClick={() => { localStorage.removeItem('isAuth'); setIsLoggedIn(false); }} className="logout-btn">EXIT</button>
+        <div className="logo">RTX 15 PRO MAX V5.1 [PRO]</div>
+        <div style={{color: '#0ecb81', fontSize: '0.6rem', display:'flex', alignItems:'center', gap:'4px', fontWeight:'bold'}}>
+          <BellRing size={12}/> ENGINE ACTIVE
+        </div>
       </header>
-      <div className="chart-box">{futuresChart}</div>
-      <div className="controls">
-        <select value={symbol} onChange={(e) => setSymbol(e.target.value)}>{markets.map(m => <option key={m} value={m}>{m} PERP</option>)}</select>
-        <select value={timeframe} onChange={(e) => setTimeframe(e.target.value)}><option value="1m">1 MIN</option><option value="3m">3 MIN</option></select>
+
+      <div className="price-bar" style={{color: isUp ? '#0ecb81' : isDown ? '#f6465d' : '#f3ba2f'}}>
+        {livePrice}
       </div>
-      <div className="signal-card">
-        <div className={`main-box ${isUp ? 'up-border' : 'down-border'}`}>
-          <div className="status-text">{alert}</div>
-          <div className={`signal-val ${isUp ? 'up-text' : 'down-text'}`}>{signal}</div>
-          <div className="info-grid">
-            <div className="label">LIVE CLOCK:</div><div className="value">{serverTime}</div>
-            <div className="label">NEXT ENTRY:</div><div className="value">{entryTime}</div>
-            <div className="label">MARKET:</div><div className="value">{symbol} PERP</div>
-            <div className="label">ACCURACY:</div><div className="value">HIGH PRECISION</div>
+
+      <div className="controls">
+        <div className="select-wrapper">
+          <select value={symbol} onChange={(e) => setSymbol(e.target.value)}>
+            {markets.sort().map(m => <option key={m} value={m}>{m} PERP</option>)}
+          </select>
+          <ChevronDown className="select-arrow" size={16} />
+        </div>
+        <div style={{background:'#161a1e', borderRadius:'8px', display:'flex', alignItems:'center', justifyContent:'center', border:'1px solid #333', fontSize:'0.7rem', fontWeight:'bold', color: '#f3ba2f'}}>
+          <Activity size={12} style={{marginRight:'5px'}}/> PRO SYNC
+        </div>
+      </div>
+
+      <div className="chart-container">
+        <iframe key={symbol} src={`https://s.tradingview.com/widgetembed/?symbol=BINANCE:${cleanSymbol(symbol)}.P&interval=1&theme=dark&style=1&hide_side_toolbar=true`} width="100%" height="100%" frameBorder="0"></iframe>
+      </div>
+
+      <div className="signal-panel">
+        <div className={`card ${isUp ? 'long-mode' : isDown ? 'short-mode' : ''}`}>
+          <div className="tags">
+            <span className={`tag ${analysis.volume.includes('HIGH') ? 'tag-on' : ''}`}>VOL_CORE</span>
+            <span className={`tag ${analysis.mtf === (isUp?'UP':'DOWN') ? 'tag-on' : ''}`}>MTF_LOCK</span>
+            <span className={`tag ${analysis.isSureShot ? 'tag-on' : ''}`}>AI_PRO</span>
           </div>
-          <div className="acc-meter" style={{borderColor: isUp ? '#0ecb81' : '#f6465d', color: isUp ? '#0ecb81' : '#f6465d'}}>
-            CONFIDENCE: {confidence.toFixed(2)}%
+
+          <div className="sig-text" style={{color: isUp ? '#0ecb81' : isDown ? '#f6465d' : '#fff'}}>
+            {analysis.type}
+          </div>
+
+          {analysis.isSureShot && (
+            <div className="alert-box sure-shot">
+              ⚡ QUANTUM SURE-SHOT DETECTED ⚡
+            </div>
+          )}
+
+          {analysis.isTrailing && (
+            <div className="alert-box trailing-sl">
+              🛡️ TP1 HIT: TRAILING SL TO ENTRY ENABLED
+            </div>
+          )}
+
+          <div className="targets">
+            <div className="t-row"><span className="t-label">ENTRY</span><span className="t-val">{analysis.entry}</span></div>
+            <div className="t-row"><span className="t-label">TAKE PROFIT 1</span><span className="t-val" style={{color:'#0ecb81'}}>{analysis.tp1}</span></div>
+            <div className="t-row"><span className="t-label">TAKE PROFIT 2</span><span className="t-val" style={{color:'#0ecb81'}}>{analysis.tp2}</span></div>
+            <div className="t-row"><span className="t-label">STOP LOSS</span><span className="t-val" style={{color:'#f6465d'}}>{analysis.sl}</span></div>
+          </div>
+
+          <div className="footer-info">
+            <span>VOL: {analysis.volume}</span>
+            <span style={{color: '#f3ba2f'}}>CONFIDENCE: {analysis.conf}%</span>
           </div>
         </div>
+      </div>
+
+      <div style={{padding:'10px', textAlign:'center', opacity: 0.3, fontSize:'0.5rem', display:'flex', justifyContent:'center', gap:'5px', alignItems:'center'}}>
+        <ShieldCheck size={10}/> INSTITUTIONAL GRADE • NO REPAINT
       </div>
     </div>
   );
