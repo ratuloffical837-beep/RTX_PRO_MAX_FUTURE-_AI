@@ -1,0 +1,51 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── পুরাতন App Collections (untouched) ──
+    match /users/{userId} {
+      allow read:  if true;
+      allow write: if false;
+    }
+    match /payments/{txId} {
+      allow create: if true;
+      allow read:   if false;
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // ── Forex App (Master AI) Collections ──
+    match /master_users/{userId} {
+      allow read:  if true;
+      allow write: if false;
+    }
+    match /master_payments/{txId} {
+      allow create: if true;
+      allow read:   if false;
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // ══════════════════════════════════════
+    //   RTX (Crypto Master) Collections
+    // ══════════════════════════════════════
+    match /crypto_users/{userId} {
+      allow read:  if true;
+      allow write: if false;
+    }
+
+    match /crypto_payments/{txId} {
+      allow create: if true;
+      allow read:   if false;
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    match /crypto_trials/{userId} {
+      allow read:   if true;
+      allow create: if true;
+      allow update: if false;
+      allow delete: if false;
+    }
+  }
+}
